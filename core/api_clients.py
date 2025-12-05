@@ -58,7 +58,7 @@ def _gemini_safety_settings(block_level="BLOCK_NONE"):
 async def transcribe_audio(media_buffer):
     try:
         api_key = load_deepgram_config()
-        dg_client = DeepgramClient(api_key)
+        dg_client = DeepgramClient(api_key=api_key)
 
         media_buffer.seek(0)
         audio_bytes = media_buffer.read()

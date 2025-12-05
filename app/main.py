@@ -39,7 +39,8 @@ def run_async(coro):
 
 # ===================== Вспомогательные функции GUI =====================
 def _ask_string(prompt):
-    return simpledialog.askstring("Input", prompt)
+    result = simpledialog.askstring("Input", prompt)
+    return result if result is not None else ""
 
 # ===================== Telegram Listeners =====================
 async def start_user_listeners():

@@ -5,8 +5,9 @@ import json
 import re
 import time
 from collections import deque
-from deepgram import DeepgramClient, FileSource
+from deepgram import DeepgramClient
 from deepgram.options import PrerecordedOptions
+from deepgram.sources import FileSource
 from core.config_loader import load_api_config, load_deepgram_config
 from app.gui_logger import log_message
 

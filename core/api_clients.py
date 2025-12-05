@@ -5,8 +5,7 @@ import json
 import re
 import time
 from collections import deque
-from deepgram import DeepgramClient
-from deepgram.clients.prerecorded.v1.options import PrerecordedOptions, FileSource
+from deepgram import DeepgramClient, FileSource
 from core.config_loader import load_api_config, load_deepgram_config
 from app.gui_logger import log_message
 
@@ -62,15 +61,16 @@ async def transcribe_audio(media_buffer):
         dg_client = DeepgramClient(api_key)
 
         media_buffer.seek(0)
-        payload: FileSource = {"buffer": media_buffer.read()}
-        options = PrerecordedOptions(
-            model="nova-2-general",
-            language="ru",
-            smart_format=True
-        )
+        source: FileSource = {"buffer": media_buffer.read()}
+
+        options = {
+            "model": "nova-2",
+            "smart_format": True,
+            "language": "ru"
+        }
 
         response = await asyncio.to_thread(
-            dg_client.listen.rest.v("1").transcribe_file, payload, options
+            dg_client.listen.prerecorded.v("1").transcribe_file, source, options
         )
 
         transcript = response["results"]["channels"][0]["alternatives"][0]["transcript"]

@@ -28,15 +28,20 @@ app_state = {
 
 SEM = asyncio.Semaphore(1)
 
-async def get_dialogs():
+async def get_dialogs(phone_callback, code_callback, password_callback):
     from core.config_loader import load_tg_config
     api_id, api_hash, session = load_tg_config()
     temp_cli = TelegramClient(session, api_id, api_hash)
     try:
-        await temp_cli.connect()
+        await temp_cli.start(
+            phone=phone_callback,
+            code_callback=code_callback,
+            password=password_callback
+        )
         if not await temp_cli.is_user_authorized():
             log_message("User is not authorized. Please log in first.", level="error")
             return []
+
         dialogs = await temp_cli.get_dialogs(limit=400)
         out = []
         for d in dialogs:

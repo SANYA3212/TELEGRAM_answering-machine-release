@@ -4,7 +4,7 @@ import os
 import re
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, simpledialog
 import importlib
 
 from telethon import TelegramClient, events
@@ -37,6 +37,10 @@ def run_async(coro):
     aio_loop_ready.wait()
     return asyncio.run_coroutine_threadsafe(coro, aio_loop)
 
+# ===================== Вспомогательные функции GUI =====================
+def _ask_string(prompt):
+    return simpledialog.askstring("Input", prompt)
+
 # ===================== Telegram Listeners =====================
 async def start_user_listeners():
     global handler_ref, scheduler_task, client
@@ -46,7 +50,11 @@ async def start_user_listeners():
     app_state["running_bots"].clear()
     api_id, api_hash, session = load_tg_config()
     client = TelegramClient(session, api_id, api_hash)
-    await client.start()
+    await client.start(
+        phone=lambda: _ask_string("Введите номер телефона:"),
+        code_callback=lambda: _ask_string("Введите код авторизации:"),
+        password=lambda: _ask_string("Введите пароль (2FA):")
+    )
 
     if scheduler_task and not scheduler_task.done():
         scheduler_task.cancel()
@@ -411,7 +419,12 @@ class TelegramBridgeApp:
                 log_message("Список чатов обновлён.", level="info")
                 if on_done: on_done()
             except Exception as e: log_message(f"[Refresh Error] {e}", level="error")
-        fut = run_async(get_dialogs())
+
+        phone_callback = lambda: _ask_string("Введите номер телефона:")
+        code_callback = lambda: _ask_string("Введите код авторизации:")
+        password_callback = lambda: _ask_string("Введите пароль (2FA):")
+
+        fut = run_async(get_dialogs(phone_callback, code_callback, password_callback))
         fut.add_done_callback(_done)
 
     def update_chat_list(self, dialogs, clear_selection=False):

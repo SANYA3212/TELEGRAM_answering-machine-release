@@ -1,4 +1,4 @@
 telethon
 httpx
-deepgram-sdk
+deepgram-sdk==3.1.5
 Pillow

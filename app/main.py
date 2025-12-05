@@ -692,15 +692,4 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    from core.paths import ERROR_LOG_FILE
-    try:
-        main()
-    except Exception:
-        import traceback
-        tb = traceback.format_exc()
-        try:
-            with open(ERROR_LOG_FILE, "w", encoding="utf-8") as f: f.write(tb)
-        except Exception: pass
-        print("\n========== UNHANDLED ERROR ==========\n")
-        print(tb)
-        input("\n[Ошибка] Нажмите Enter, чтобы закрыть...")
+    main()

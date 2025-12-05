@@ -1,18 +1,7 @@
 @echo off
-echo Creating virtual environment...
+echo [+] Setting up Python virtual environment...
 python -m venv .venv
-echo Activating virtual environment...
-call .venv\Scripts\activate
-echo Upgrading pip...
-python -m pip install --upgrade pip
-echo Installing
-pip install httpx
-pip install telethon
-pip install "httpx[socks]"  
-pip install cryptg          
-pip install deepgram-sdk
-pip install pillow          
-python -m pip install --user schedule
-pip install openai
-pip install telethon httpx
+echo [+] Installing dependencies from requirements.txt...
+.venv\\Scripts\\pip.exe install -r requirements.txt
+echo [+] Setup complete!
 pause

@@ -50,10 +50,14 @@ def _normalize_gemini_model_name(model: str) -> str:
         name = name[: -len(":generateContent")]
     return name.strip()
 
-def load_api_config():
+def load_api_config(just_get_api_key=False):
     ensure_api_config()
     with open(API_FILE, "r", encoding="utf-8") as f:
         cfg = json.load(f)
+
+    api_key  = (cfg.get("api_key") or "").strip()
+    if just_get_api_key:
+        return api_key, None, None
     provider = (cfg.get("provider") or "gemini").strip().lower()
     base_url = (cfg.get("base_url") or "").strip()
     api_key  = (cfg.get("api_key") or "").strip()
@@ -80,6 +84,19 @@ def load_api_config():
 
     endpoint = f"{base_url}/v1beta/models/{model}:generateContent?key={api_key}"
     return endpoint, model, rpm
+
+def save_api_config(new_model_name):
+    """
+    Saves the new model name to the API config file.
+    """
+    ensure_api_config()
+    with open(API_FILE, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    cfg['model'] = new_model_name
+
+    with open(API_FILE, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 def load_tg_config():
     from core.paths import TMP_DIR

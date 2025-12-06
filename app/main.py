@@ -12,11 +12,12 @@ from telethon import TelegramClient, events
 import core.scheduler as scheduler
 from core.paths import STATE_FILE, TMP_DIR
 from core.config_loader import (ensure_api_config, ensure_tg_config, ensure_deepgram_config,
-                                ensure_bots_config, load_prompt_config, load_bots, save_bots, load_api_config)
+                                ensure_bots_config, load_prompt_config, load_bots, save_bots, load_api_config, save_api_config)
 from core.history_manager import load_history, save_history, clear_chat_history, clear_bot_history
 from core.telegram_handlers import get_dialogs, multi_chat_handler, bot_message_handler, app_state
 from app.gui_logger import log_message, init_logger, clear_log as clear_log_widget
-from core.api_clients import gemini_generate
+from core.api_clients import gemini_generate, get_available_models
+from core.utils import console_input
 
 # ===================== Глобальное состояние GUI =====================
 client = None
@@ -36,11 +37,6 @@ def start_background_loop():
 def run_async(coro):
     aio_loop_ready.wait()
     return asyncio.run_coroutine_threadsafe(coro, aio_loop)
-
-# ===================== Вспомогательные функции для консольного ввода =====================
-def console_input(prompt):
-    print(prompt, end='', flush=True)
-    return input()
 
 # ===================== Telegram Listeners =====================
 async def start_user_listeners():
@@ -276,12 +272,21 @@ class TelegramBridgeApp:
         self.see_my_msgs_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(right, text="Видеть мои сообщения (User Mode)", variable=self.see_my_msgs_var, style="Dark.TCheckbutton", command=self.on_see_my_msgs_toggle).grid(row=2, column=0, columnspan=2, sticky="w", pady=(0,6))
         self.verbose_logging_var = tk.BooleanVar(value=False); ttk.Checkbutton(right, text="Подробные логи", variable=self.verbose_logging_var, style="Dark.TCheckbutton").grid(row=2, column=2, sticky="w", pady=(0,6))
-        ttk.Label(right, text="Температура модели:", style="Dark.TLabel").grid(row=3, column=0, sticky="w")
-        self.temp_var = tk.DoubleVar(value=0.7); tk.Scale(right, from_=0.0, to=2.0, resolution=0.1, orient="horizontal", variable=self.temp_var, showvalue=False, bg=BG, fg=FG, highlightthickness=0, troughcolor=BLUE, activebackground=BLUE, relief="flat", bd=0, command=self.on_temp_change).grid(row=3, column=1, sticky="we", pady=2)
-        self.temp_value_label = ttk.Label(right, text=f"{self.temp_var.get():.1f}", style="Dark.TLabel"); self.temp_value_label.grid(row=3, column=2, sticky="w")
+
+        ttk.Label(right, text="Модель Gemini:", style="Dark.TLabel").grid(row=3, column=0, sticky="w")
+        self.model_combo = ttk.Combobox(right, state="readonly", style="Friend.TCombobox", width=30)
+        self.model_combo.grid(row=3, column=1, columnspan=2, sticky="we", pady=2)
+        self.model_combo.bind("<<ComboboxSelected>>", self.on_model_change)
+        self.style_combobox_dropdown(self.model_combo, bg="#101010", fg="#ffffff", sel_bg="#0f0f0f", sel_fg=FRIEND_GREEN)
+
+        ttk.Label(right, text="Температура модели:", style="Dark.TLabel").grid(row=4, column=0, sticky="w")
+        self.temp_var = tk.DoubleVar(value=0.7); tk.Scale(right, from_=0.0, to=2.0, resolution=0.1, orient="horizontal", variable=self.temp_var, showvalue=False, bg=BG, fg=FG, highlightthickness=0, troughcolor=BLUE, activebackground=BLUE, relief="flat", bd=0, command=self.on_temp_change).grid(row=4, column=1, sticky="we", pady=2)
+        self.temp_value_label = ttk.Label(right, text=f"{self.temp_var.get():.1f}", style="Dark.TLabel"); self.temp_value_label.grid(row=4, column=2, sticky="w")
+
         self.start_btn = ttk.Button(right, text="Запустить", command=self.on_start, style="Dark.TButton"); self.stop_btn = ttk.Button(right, text="Остановить", command=self.on_stop_button_click, style="Dark.TButton"); self.restart_btn = ttk.Button(right, text="Перезагрузить", command=self.on_restart, style="Dark.TButton"); self.clear_btn = ttk.Button(right, text="Очистить историю (User Mode)", command=self.on_clear_user_history, style="Dark.TButton")
-        self.start_btn.grid(row=4, column=0, pady=6, sticky="we"); self.stop_btn.grid(row=4, column=1, pady=6, sticky="we"); self.restart_btn.grid(row=4, column=2, pady=6, sticky="we"); self.clear_btn.grid(row=5, column=0, columnspan=3, pady=(0,6), sticky="we")
-        ttk.Label(right, text="Отправить в выбранный чат (User Mode):", style="Dark.TLabel").grid(row=6, column=0, columnspan=3, sticky="w", pady=(8,0))
+        self.start_btn.grid(row=5, column=0, pady=6, sticky="we"); self.stop_btn.grid(row=5, column=1, pady=6, sticky="we"); self.restart_btn.grid(row=5, column=2, pady=6, sticky="we"); self.clear_btn.grid(row=6, column=0, columnspan=3, pady=(0,6), sticky="we")
+
+        ttk.Label(right, text="Отправить в выбранный чат (User Mode):", style="Dark.TLabel").grid(row=7, column=0, columnspan=3, sticky="w", pady=(8,0))
         self.gui_message_text = scrolledtext.ScrolledText(right, height=3, bg=SEARCH_BG, fg=FG, relief="flat", insertbackground=FG); self.gui_message_text.grid(row=7, column=0, columnspan=3, sticky="nsew", pady=4)
         ttk.Button(right, text="Спросить ИИ (приватно)", command=lambda: run_async(self.on_send_from_gui()), style="Dark.TButton").grid(row=8, column=0, columnspan=3, sticky="ew", pady=(0,2))
         ttk.Button(right, text="Отправить ответ в ЧАТ В ФОКУСЕ", command=lambda: run_async(self.on_send_to_focused_chat()), style="Dark.TButton").grid(row=9, column=0, columnspan=3, sticky="ew")
@@ -295,6 +300,8 @@ class TelegramBridgeApp:
         app_state["bots_list"] = load_bots()
         self.friend_combo['values'] = [f"{n} — {d}" for n, d in app_state["friends"]] + [f"{app_state['noname'][0]} — {app_state['noname'][1]}"]
         self.friend_combo.current(0)
+
+        self.populate_models_dropdown()
 
         loop_thread = threading.Thread(target=start_background_loop, daemon=True); loop_thread.start(); aio_loop_ready.wait()
 
@@ -672,6 +679,36 @@ class TelegramBridgeApp:
         app_state["see_my_msgs"] = self.see_my_msgs_var.get()
         status = "включено" if app_state["see_my_msgs"] else "выключено"
         log_message(f"Опция 'Видеть мои сообщения' {status}.", level="debug")
+
+    def populate_models_dropdown(self):
+        try:
+            available_models = get_available_models()
+            if not available_models:
+                available_models = ["gemini-1.5-flash"] # Fallback
+                log_message("Не удалось получить список моделей, используется модель по умолчанию.", level="warning")
+
+            self.model_combo['values'] = available_models
+
+            _, current_model, _ = load_api_config()
+            if current_model in available_models:
+                self.model_combo.set(current_model)
+            else:
+                self.model_combo.current(0)
+                save_api_config(self.model_combo.get())
+
+        except Exception as e:
+            log_message(f"Ошибка при загрузке моделей: {e}", level="error")
+            self.model_combo['values'] = ["gemini-1.5-flash"]
+            self.model_combo.current(0)
+
+    def on_model_change(self, event=None):
+        new_model = self.model_combo.get()
+        try:
+            save_api_config(new_model)
+            log_message(f"Модель изменена на: {new_model}", level="info")
+        except Exception as e:
+            log_message(f"Ошибка при сохранении модели: {e}", level="error")
+            messagebox.showerror("Ошибка", f"Не удалось сохранить модель: {e}")
 
     def style_combobox_dropdown(self, cb, bg, fg, sel_bg, sel_fg):
         def _apply(_=None):

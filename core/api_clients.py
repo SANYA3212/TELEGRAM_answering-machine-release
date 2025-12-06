@@ -5,6 +5,7 @@ import json
 import re
 import time
 from collections import deque
+import google.generativeai as genai
 from deepgram import DeepgramClient
 from core.config_loader import load_api_config, load_deepgram_config
 from app.gui_logger import log_message
@@ -171,3 +172,24 @@ async def gemini_parse_task(text: str):
             return json.loads(match.group(0))
         except json.JSONDecodeError:
             return None
+
+def get_available_models():
+    """
+    Fetches and filters available Gemini models that support text generation.
+    """
+    try:
+        api_key, _, _ = load_api_config(just_get_api_key=True)
+        if not api_key:
+            log_message("API key for Gemini not found. Cannot fetch models.", level="error")
+            return []
+
+        genai.configure(api_key=api_key)
+
+        models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                models.append(m.name.replace("models/", ""))
+        return models
+    except Exception as e:
+        log_message(f"[Model Fetch Error] Failed to get available models: {e}", level="error")
+        return []

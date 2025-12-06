@@ -12,6 +12,7 @@ from core.history_manager import load_history, save_history
 from app.gui_logger import log_message
 from collections import deque
 import core.scheduler as scheduler
+from core.utils import console_input
 
 class RateLimiter:
     def __init__(self, max_messages=30, period=60):
@@ -45,10 +46,6 @@ app_state = {
 }
 
 SEM = asyncio.Semaphore(1)
-
-def console_input(prompt):
-    print(prompt, end='', flush=True)
-    return input()
 
 async def get_dialogs():
     from core.config_loader import load_tg_config

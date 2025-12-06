@@ -108,19 +108,32 @@ async def bot_message_handler(evt, bot_token: str, db_id: str):
             await cli.send_message(chat_id, reply)
 
 async def multi_chat_handler(evt):
-    if not app_state["bots_running"]: return
+    log_message(f"DEBUG: multi_chat_handler received an event.", level="debug")
+    if not app_state["bots_running"]:
+        log_message(f"DEBUG: bots_running is False, returning.", level="debug")
+        return
 
     cli = evt.client
     me = await cli.get_me()
 
     if not app_state["see_my_msgs"]:
-        if getattr(evt.message, "out", False): return
-        if getattr(evt.message, "sender_id", None) == me.id: return
+        if getattr(evt.message, "out", False):
+            log_message(f"DEBUG: Message is outgoing and see_my_msgs is False, returning.", level="debug")
+            return
+        if getattr(evt.message, "sender_id", None) == me.id:
+            log_message(f"DEBUG: Message from me and see_my_msgs is False, returning.", level="debug")
+            return
 
     chat_id = evt.chat_id
-    chat_title = app_state["active_chat_id_map"].get(chat_id)
-    if not chat_title: return
+    log_message(f"DEBUG: Event from chat_id: {chat_id}", level="debug")
+    log_message(f"DEBUG: Current active_chat_id_map: {app_state['active_chat_id_map']}", level="debug")
 
+    chat_title = app_state["active_chat_id_map"].get(chat_id)
+    if not chat_title:
+        log_message(f"DEBUG: chat_id {chat_id} not in active_chat_id_map. Returning.", level="debug")
+        return
+
+    log_message(f"DEBUG: Matched chat_title: {chat_title}", level="debug")
     chat_data = app_state["active_chat_entities"].get(chat_title, {})
     friend_index = chat_data.get("friend_index", len(app_state["friends"]))
     friend_name = app_state["noname"][0] if friend_index >= len(app_state["friends"]) else app_state["friends"][friend_index][0]

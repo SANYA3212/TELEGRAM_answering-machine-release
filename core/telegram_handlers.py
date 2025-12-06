@@ -10,9 +10,27 @@ from PIL import Image
 from core.api_clients import transcribe_audio, gemini_generate, gemini_parse_task
 from core.history_manager import load_history, save_history
 from app.gui_logger import log_message
+from collections import deque
 import core.scheduler as scheduler
 
+class RateLimiter:
+    def __init__(self, max_messages=30, period=60):
+        self.max_messages = max_messages
+        self.period = period
+        self.timestamps = deque()
+
+    def allow_message(self):
+        current_time = time.time()
+        while self.timestamps and self.timestamps[0] <= current_time - self.period:
+            self.timestamps.popleft()
+
+        if len(self.timestamps) < self.max_messages:
+            self.timestamps.append(current_time)
+            return True
+        return False
+
 # Глобальные переменные, которые будут установлены из main.py
+rate_limiter = RateLimiter()
 app_state = {
     "bots_running": False,
     "see_my_msgs": False,
@@ -105,7 +123,10 @@ async def bot_message_handler(evt, bot_token: str, db_id: str):
         history.append({"role": "assistant", "content": reply})
         save_history(hist_path, history, "")
         if bot_token in app_state["running_bots"]:
-            await cli.send_message(chat_id, reply)
+            if rate_limiter.allow_message():
+                await cli.send_message(chat_id, reply)
+            else:
+                log_message("  [Rate Limiter] Превышен лимит сообщений. Отправка отменена.", level="warning")
 
 async def multi_chat_handler(evt):
     if not app_state["bots_running"]: return
@@ -154,7 +175,10 @@ async def multi_chat_handler(evt):
         history.append({"role": "assistant", "content": reply})
         save_history(hist_path, history, custom_prompt)
         if app_state["bots_running"]:
-            await cli.send_message(chat_id, reply)
+            if rate_limiter.allow_message():
+                await cli.send_message(chat_id, reply)
+            else:
+                log_message("  [Rate Limiter] Превышен лимит сообщений. Отправка отменена.", level="warning")
 
 async def _process_message_media(evt):
     is_voice = evt.message.voice

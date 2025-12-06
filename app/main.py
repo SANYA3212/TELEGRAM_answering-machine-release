@@ -273,7 +273,8 @@ class TelegramBridgeApp:
         right = ttk.Frame(main_frame, style="Dark.TLabel"); right.grid(row=0, column=1, sticky="nsew"); right.columnconfigure(0, weight=1); right.columnconfigure(1, weight=1); right.columnconfigure(2, weight=1); right.rowconfigure(12, weight=1)
         ttk.Label(right, text="С кем общаемся (для User Mode):", style="Dark.TLabel").grid(row=0, column=0, columnspan=3, sticky="w")
         self.friend_combo = ttk.Combobox(right, width=50, state="readonly", style="Friend.TCombobox"); self.friend_combo.grid(row=1, column=0, columnspan=3, sticky="we", pady=(0,6)); self.style_combobox_dropdown(self.friend_combo, bg="#101010", fg="#ffffff", sel_bg="#0f0f0f", sel_fg=FRIEND_GREEN); self.friend_combo.bind("<<ComboboxSelected>>", self.on_friend_change)
-        self.see_my_msgs_var = tk.BooleanVar(value=False); ttk.Checkbutton(right, text="Видеть мои сообщения (User Mode)", variable=self.see_my_msgs_var, style="Dark.TCheckbutton").grid(row=2, column=0, columnspan=2, sticky="w", pady=(0,6))
+        self.see_my_msgs_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(right, text="Видеть мои сообщения (User Mode)", variable=self.see_my_msgs_var, style="Dark.TCheckbutton", command=self.on_see_my_msgs_toggle).grid(row=2, column=0, columnspan=2, sticky="w", pady=(0,6))
         self.verbose_logging_var = tk.BooleanVar(value=False); ttk.Checkbutton(right, text="Подробные логи", variable=self.verbose_logging_var, style="Dark.TCheckbutton").grid(row=2, column=2, sticky="w", pady=(0,6))
         ttk.Label(right, text="Температура модели:", style="Dark.TLabel").grid(row=3, column=0, sticky="w")
         self.temp_var = tk.DoubleVar(value=0.7); tk.Scale(right, from_=0.0, to=2.0, resolution=0.1, orient="horizontal", variable=self.temp_var, showvalue=False, bg=BG, fg=FG, highlightthickness=0, troughcolor=BLUE, activebackground=BLUE, relief="flat", bd=0, command=self.on_temp_change).grid(row=3, column=1, sticky="we", pady=2)
@@ -666,6 +667,11 @@ class TelegramBridgeApp:
         except: v = 0.7
         app_state["temp_var"] = v
         if self.temp_value_label: self.temp_value_label.config(text=f"{v:.1f}")
+
+    def on_see_my_msgs_toggle(self):
+        app_state["see_my_msgs"] = self.see_my_msgs_var.get()
+        status = "включено" if app_state["see_my_msgs"] else "выключено"
+        log_message(f"Опция 'Видеть мои сообщения' {status}.", level="debug")
 
     def style_combobox_dropdown(self, cb, bg, fg, sel_bg, sel_fg):
         def _apply(_=None):

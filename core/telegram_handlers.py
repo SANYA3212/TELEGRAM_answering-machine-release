@@ -113,11 +113,9 @@ async def multi_chat_handler(evt):
     cli = evt.client
     me = await cli.get_me()
 
-    # ВРЕМЕННЫЙ КОД ДЛЯ ТЕСТИРОВАНИЯ: Ответ на свои же сообщения
-    # if not app_state["see_my_msgs"]:
-    #     if getattr(evt.message, "out", False): return
-    #     if getattr(evt.message, "sender_id", None) == me.id: return
-    # КОНЕЦ ВРЕМЕННОГО КОДА
+    if not app_state["see_my_msgs"]:
+        if getattr(evt.message, "out", False): return
+        if getattr(evt.message, "sender_id", None) == me.id: return
 
     chat_id = evt.chat_id
     chat_title = app_state["active_chat_id_map"].get(chat_id)

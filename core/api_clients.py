@@ -6,7 +6,7 @@ import re
 import time
 from collections import deque
 import google.generativeai as genai
-from deepgram import DeepgramClient
+from deepgram import DeepgramClient, PrerecordedOptions
 from core.config_loader import load_api_config, load_deepgram_config
 from app.gui_logger import log_message
 
@@ -64,19 +64,17 @@ async def transcribe_audio(media_buffer):
         media_buffer.seek(0)
         audio_bytes = media_buffer.read()
 
-        source = {"buffer": audio_bytes}
+        payload = {"buffer": audio_bytes}
 
-        options = {
-            "model": "nova-2",
-            "smart_format": True,
-            "language": "ru"
-        }
-
-        response = await asyncio.to_thread(
-            dg_client.transcription.sync_prerecorded, source, options
+        options = PrerecordedOptions(
+            model="nova-2",
+            smart_format=True,
+            language="ru"
         )
 
-        transcript = response['results']['channels'][0]['alternatives'][0]['transcript']
+        response = await dg_client.listen.rest.v("1").transcribe_file(payload, options)
+
+        transcript = response.results.channels[0].alternatives[0].transcript
         return transcript
 
     except Exception as e:
@@ -84,87 +82,78 @@ async def transcribe_audio(media_buffer):
         return None
 
 async def gemini_generate(history, friend_name: str, temperature: float, custom_prompt: str, system_prompt: str):
-    endpoint, model, rpm = load_api_config()
-    full_system_prompt = f"{system_prompt}\n\n{custom_prompt}\n\nСейчас ты общаешься с: {friend_name}."
-
-    contents = _history_to_gemini_contents(history)
-
-    payload = {
-        "systemInstruction": {
-            "role": "system",
-            "parts": [{"text": full_system_prompt}]
-        },
-        "contents": contents,
-        "generationConfig": {
-            "temperature": float(temperature),
-            "topP": 0.95,
-            "maxOutputTokens": 1024
-        },
-        "safetySettings": _gemini_safety_settings()
-    }
-    headers = {"Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=90) as cli:
+    try:
+        _, model_name, rpm = load_api_config()
         await acquire_rate_slot(rpm)
-        r = await cli.post(endpoint, headers=headers, json=payload)
-        log_message(f"[API Response Raw] {r.text}", level="debug")
-        if r.status_code >= 400:
-            try:
-                js = r.json()
-                raise httpx.HTTPStatusError(json.dumps(js, ensure_ascii=False), request=r.request, response=r)
-            except Exception:
-                r.raise_for_status()
-        js = r.json()
-        feedback = js.get("promptFeedback") or {}
-        if feedback.get("blockReason"):
-            reason = feedback.get("blockReason")
-            log_message(f"[Gemini Safety Blocked] {reason}", level="error")
+
+        model = genai.GenerativeModel(model_name)
+
+        full_system_prompt = f"{system_prompt}\n\n{custom_prompt}\n\nСейчас ты общаешься с: {friend_name}."
+
+        contents = _history_to_gemini_contents(history)
+
+        generation_config = genai.types.GenerationConfig(
+            temperature=float(temperature),
+            top_p=0.95,
+            max_output_tokens=1024
+        )
+
+        response = await model.generate_content_async(
+            contents=contents,
+            generation_config=generation_config,
+            safety_settings=_gemini_safety_settings(),
+            system_instruction=full_system_prompt
+        )
+
+        log_message(f"[API Response Raw] {response}", level="debug")
+
+        if not response.candidates:
+            log_message("[Gemini Safety Blocked] No candidates returned.", level="error")
             return ""
-        cand = (js.get("candidates") or [])
-        if not cand:
-            return ""
-        content = cand[0].get("content") or {}
-        parts = content.get("parts") or []
-        out = []
-        for p in parts:
-            if "text" in p:
-                out.append(p["text"])
-        return "\n".join(out).strip()
+
+        return response.text.strip()
+
+    except Exception as e:
+        log_message(f"[Gemini Generate Error] {e}", level="error")
+        return ""
 
 async def gemini_parse_task(text: str):
-    endpoint, model, rpm = load_api_config()
-    prompt = (
-        "Ты — ИИ-парсер для планировщика задач. Твоя задача — извлечь из текста три параметра: "
-        "кому адресована задача (addressee), что нужно сделать (text) и через сколько минут (minutes). "
-        "Если адресат не указан, используй 'мне'. Если время не указано, верни 0. "
-        "Ответ должен быть ТОЛЬКО в формате JSON. Пример: "
-        '{"addressee": "Петя", "text": "подойти к компьютеру", "minutes": 15}'
-    )
-    payload = {
-        "contents": [
+    try:
+        _, model_name, rpm = load_api_config()
+        await acquire_rate_slot(rpm)
+
+        model = genai.GenerativeModel(model_name)
+
+        prompt = (
+            "Ты — ИИ-парсер для планировщика задач. Твоя задача — извлечь из текста три параметра: "
+            "кому адресована задача (addressee), что нужно сделать (text) и через сколько минут (minutes). "
+            "Если адресат не указан, используй 'мне'. Если время не указано, верни 0. "
+            "Ответ должен быть ТОЛЬКО в формате JSON. Пример: "
+            '{"addressee": "Петя", "text": "подойти к компьютеру", "minutes": 15}'
+        )
+
+        contents = [
             {"role": "user", "parts": [{"text": prompt}]},
             {"role": "model", "parts": [{"text": "OK"}]},
             {"role": "user", "parts": [{"text": text}]}
-        ],
-        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 200},
-        "safetySettings": _gemini_safety_settings("BLOCK_ONLY_HIGH")
-    }
-    headers = {"Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=30) as cli:
-        await acquire_rate_slot(rpm)
-        r = await cli.post(endpoint, headers=headers, json=payload)
-        r.raise_for_status()
-        js = r.json()
-        feedback = js.get("promptFeedback") or {}
-        if feedback.get("blockReason"):
-            log_message(f"[Gemini Safety Blocked] {feedback.get('blockReason')}", level="error")
-            return None
-        cand = (js.get("candidates") or [])
-        if not cand: return None
-        content = cand[0].get("content") or {}
-        parts = content.get("parts") or []
-        if not parts or "text" not in parts[0]: return None
+        ]
 
-        raw_text = parts[0]["text"]
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.0,
+            max_output_tokens=200
+        )
+
+        response = await model.generate_content_async(
+            contents=contents,
+            generation_config=generation_config,
+            safety_settings=_gemini_safety_settings("BLOCK_ONLY_HIGH")
+        )
+
+        if not response.candidates:
+            log_message("[Gemini Safety Blocked] No candidates returned for task parsing.", level="error")
+            return None
+
+        raw_text = response.text
         match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         if not match: return None
 
@@ -172,6 +161,9 @@ async def gemini_parse_task(text: str):
             return json.loads(match.group(0))
         except json.JSONDecodeError:
             return None
+    except Exception as e:
+        log_message(f"[Gemini Parse Error] {e}", level="error")
+        return None
 
 def get_available_models():
     """

@@ -177,6 +177,7 @@ class TelegramBridgeApp:
 
         self.create_user_tab(self.notebook, BG, SEARCH_BG, CHAT_COLOR, BLUE, FG, FRIEND_GREEN)
         self.create_bot_tab(self.notebook, BG, SEARCH_BG, BLUE, FG, FRIEND_GREEN)
+        self.create_settings_bot_tab(self.notebook, BG, SEARCH_BG, BLUE, FG, FRIEND_GREEN)
         self.create_cleanup_tab(self.notebook, BG, FRIEND_GREEN)
         self.create_right_panel(main_frame, BG, SEARCH_BG, BLUE, FG, FRIEND_GREEN)
 
@@ -251,6 +252,28 @@ class TelegramBridgeApp:
         self.bot_prompt_text = scrolledtext.ScrolledText(bot_edit_frame, height=10, bg=SEARCH_BG, fg=FG, relief="flat", insertbackground=FG)
         self.bot_prompt_text.grid(row=3, column=0, sticky="nsew", pady=4)
         ttk.Button(bot_edit_frame, text="Сохранить изменения для бота", command=self.on_save_bot, style="Dark.TButton").grid(row=4, column=0, sticky="ew", pady=(5,0))
+
+    def create_settings_bot_tab(self, notebook, BG, SEARCH_BG, BLUE, FG, FRIEND_GREEN):
+        settings_bot_tab = ttk.Frame(notebook, style="Dark.TLabel", padding=10)
+        notebook.add(settings_bot_tab, text="⚙️ Settings Bot")
+
+        token_frame = ttk.Frame(settings_bot_tab, style="Dark.TLabel")
+        token_frame.pack(fill="x", pady=5)
+
+        ttk.Label(token_frame, text="Токен бота для настроек:", style="Dark.TLabel").pack(side="left", padx=(0, 5))
+        self.settings_bot_token_entry = tk.Entry(token_frame, bg=SEARCH_BG, fg=FG, insertbackground=FG, relief="flat", width=50)
+        self.settings_bot_token_entry.pack(side="left", fill="x", expand=True)
+
+        ttk.Button(token_frame, text="Сохранить токен", command=lambda: print("Save token clicked"), style="Dark.TButton").pack(side="left", padx=5)
+
+        button_frame = ttk.Frame(settings_bot_tab, style="Dark.TLabel")
+        button_frame.pack(fill="x", pady=10)
+
+        self.connect_settings_bot_btn = ttk.Button(button_frame, text="Подключить", command=lambda: print("Connect clicked"), style="Dark.TButton")
+        self.connect_settings_bot_btn.pack(side="left", expand=True, fill="x", padx=(0, 5))
+
+        self.disconnect_settings_bot_btn = ttk.Button(button_frame, text="Отключить", command=lambda: print("Disconnect clicked"), style="Dark.TButton", state="disabled")
+        self.disconnect_settings_bot_btn.pack(side="left", expand=True, fill="x")
 
     def create_cleanup_tab(self, notebook, BG, FRIEND_GREEN):
         cleanup_tab = ttk.Frame(notebook, style="Dark.TLabel", padding=10)

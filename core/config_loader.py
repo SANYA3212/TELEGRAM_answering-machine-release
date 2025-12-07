@@ -1,6 +1,6 @@
 import json
 import os
-from core.paths import API_FILE, TG_FILE, PROMPT_FILE, DEEPGRAM_FILE, BOTS_FILE
+from core.paths import API_FILE, TG_FILE, PROMPT_FILE, DEEPGRAM_FILE, BOTS_FILE, SETTINGS_BOT_FILE
 
 # ===================== Конфиги API/Telegram/Bots =====================
 def ensure_deepgram_config():
@@ -132,6 +132,22 @@ def load_bots():
 def save_bots(bots_list):
     with open(BOTS_FILE, "w", encoding="utf-8") as f:
         json.dump(bots_list, f, ensure_ascii=False, indent=2)
+
+def ensure_settings_bot_config():
+    if os.path.exists(SETTINGS_BOT_FILE):
+        return
+    with open(SETTINGS_BOT_FILE, "w", encoding="utf-8") as f:
+        json.dump({"bot_token": ""}, f, ensure_ascii=False, indent=2)
+
+def load_settings_bot_config():
+    ensure_settings_bot_config()
+    with open(SETTINGS_BOT_FILE, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    return (cfg.get("bot_token") or "").strip()
+
+def save_settings_bot_config(token):
+    with open(SETTINGS_BOT_FILE, "w", encoding="utf-8") as f:
+        json.dump({"bot_token": token}, f, ensure_ascii=False, indent=2)
 
 # ===================== SYSTEM_PROMPT.json =====================
 def _default_system_prompt() -> str:

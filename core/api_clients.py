@@ -72,7 +72,9 @@ async def transcribe_audio(media_buffer):
             language="ru"
         )
 
-        response = await dg_client.listen.rest.v("1").transcribe_file(payload, options)
+        response = await asyncio.to_thread(
+            dg_client.listen.rest.v("1").transcribe_file, payload, options
+        )
 
         transcript = response.results.channels[0].alternatives[0].transcript
         return transcript

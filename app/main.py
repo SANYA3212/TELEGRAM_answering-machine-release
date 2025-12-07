@@ -12,11 +12,13 @@ from telethon import TelegramClient, events
 import core.scheduler as scheduler
 from core.paths import STATE_FILE, TMP_DIR
 from core.config_loader import (ensure_api_config, ensure_tg_config, ensure_deepgram_config,
-                                ensure_bots_config, load_prompt_config, load_bots, save_bots, load_api_config, save_api_config)
+                                ensure_bots_config, load_prompt_config, load_bots, save_bots, load_api_config, save_api_config,
+                                load_settings_bot_config, save_settings_bot_config)
 from core.history_manager import load_history, save_history, clear_chat_history, clear_bot_history
 from core.telegram_handlers import get_dialogs, multi_chat_handler, bot_message_handler, app_state
 from app.gui_logger import log_message, init_logger, clear_log as clear_log_widget
 from core.api_clients import gemini_generate, get_available_models
+from core.settings_bot import start_settings_bot, stop_settings_bot
 from core.utils import console_input
 
 # ===================== Глобальное состояние GUI =====================
@@ -155,7 +157,11 @@ class TelegramBridgeApp:
         self.chat_entities = []
         self.filtered_chats = []
         app_state["active_chat_entities"] = {}
-        app_state["gui_update_callbacks"] = {"update_bots_listbox": self.update_bots_listbox}
+        app_state["gui_update_callbacks"] = {
+            "update_bots_listbox": self.update_bots_listbox,
+            "update_settings_bot_buttons": self.update_settings_bot_buttons
+        }
+        app_state["settings_bot_running"] = False
         self.setup_ui()
         self.load_initial_data()
 
@@ -264,15 +270,15 @@ class TelegramBridgeApp:
         self.settings_bot_token_entry = tk.Entry(token_frame, bg=SEARCH_BG, fg=FG, insertbackground=FG, relief="flat", width=50)
         self.settings_bot_token_entry.pack(side="left", fill="x", expand=True)
 
-        ttk.Button(token_frame, text="Сохранить токен", command=lambda: print("Save token clicked"), style="Dark.TButton").pack(side="left", padx=5)
+        ttk.Button(token_frame, text="Сохранить токен", command=self.on_save_settings_bot_token, style="Dark.TButton").pack(side="left", padx=5)
 
         button_frame = ttk.Frame(settings_bot_tab, style="Dark.TLabel")
         button_frame.pack(fill="x", pady=10)
 
-        self.connect_settings_bot_btn = ttk.Button(button_frame, text="Подключить", command=lambda: print("Connect clicked"), style="Dark.TButton")
+        self.connect_settings_bot_btn = ttk.Button(button_frame, text="Подключить", command=self.on_connect_settings_bot, style="Dark.TButton")
         self.connect_settings_bot_btn.pack(side="left", expand=True, fill="x", padx=(0, 5))
 
-        self.disconnect_settings_bot_btn = ttk.Button(button_frame, text="Отключить", command=lambda: print("Disconnect clicked"), style="Dark.TButton", state="disabled")
+        self.disconnect_settings_bot_btn = ttk.Button(button_frame, text="Отключить", command=self.on_disconnect_settings_bot, style="Dark.TButton", state="disabled")
         self.disconnect_settings_bot_btn.pack(side="left", expand=True, fill="x")
 
     def create_cleanup_tab(self, notebook, BG, FRIEND_GREEN):
@@ -325,6 +331,12 @@ class TelegramBridgeApp:
         self.friend_combo.current(0)
 
         self.populate_models_dropdown()
+
+        # Загрузка токена бота настроек
+        settings_bot_token = load_settings_bot_config()
+        self.settings_bot_token_entry.delete(0, 'end')
+        self.settings_bot_token_entry.insert(0, settings_bot_token)
+        self.update_settings_bot_buttons()
 
         loop_thread = threading.Thread(target=start_background_loop, daemon=True); loop_thread.start(); aio_loop_ready.wait()
 
@@ -388,6 +400,8 @@ class TelegramBridgeApp:
     def on_close(self):
         self.save_gui_state()
         run_async(stop_listeners())
+        if app_state.get("settings_bot_running"):
+            run_async(stop_settings_bot())
         if aio_loop: aio_loop.call_soon_threadsafe(aio_loop.stop)
         self.root.destroy()
 
@@ -756,9 +770,33 @@ class TelegramBridgeApp:
 
     def on_tab_change(self, event):
         selected_tab = self.notebook.index(self.notebook.select())
-        mode = "user" if selected_tab == 0 else "bot"
-        self.operation_mode_var.set(mode)
-        log_message(f"Переключен режим на: {'User Mode' if mode == 'user' else 'Bot Mode'}", level="debug")
+        if selected_tab in [0, 1]: # User or Bot tab
+             mode = "user" if selected_tab == 0 else "bot"
+             self.operation_mode_var.set(mode)
+             log_message(f"Переключен режим на: {'User Mode' if mode == 'user' else 'Bot Mode'}", level="debug")
+
+    # ===================== Settings Bot Methods =====================
+    def on_save_settings_bot_token(self):
+        token = self.settings_bot_token_entry.get().strip()
+        if token and not re.match(r'^\d+:[a-zA-Z0-9_-]+$', token):
+            messagebox.showerror("Ошибка", "Неверный формат токена."); return
+        save_settings_bot_config(token)
+        log_message("✅ Токен бота для настроек сохранен.", level="info")
+
+    def on_connect_settings_bot(self):
+        token = self.settings_bot_token_entry.get().strip()
+        if not token:
+            messagebox.showerror("Ошибка", "Токен не может быть пустым."); return
+        run_async(start_settings_bot(token))
+
+    def on_disconnect_settings_bot(self):
+        run_async(stop_settings_bot())
+
+    def update_settings_bot_buttons(self):
+        is_running = app_state.get("settings_bot_running", False)
+        self.connect_settings_bot_btn.config(state="disabled" if is_running else "normal")
+        self.disconnect_settings_bot_btn.config(state="normal" if is_running else "disabled")
+        self.settings_bot_token_entry.config(state="disabled" if is_running else "normal")
 
 def main():
     root = tk.Tk()

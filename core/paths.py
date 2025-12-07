@@ -32,6 +32,7 @@ TG_FILE       = os.path.join(CONFIG_DIR, "telegram_api.json")
 PROMPT_FILE   = os.path.join(CONFIG_DIR, "SYSTEM_PROMPT.json")
 DEEPGRAM_FILE = os.path.join(CONFIG_DIR, "deepgram_api.json")
 BOTS_FILE     = os.path.join(CONFIG_DIR, "bots.json")
+SETTINGS_BOT_FILE = os.path.join(CONFIG_DIR, "settings_bot.json")
 
 # Пути к временным файлам и логам
 STATE_FILE    = os.path.join(TMP_DIR, "gui_state.json")

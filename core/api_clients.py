@@ -88,9 +88,12 @@ async def gemini_generate(history, friend_name: str, temperature: float, custom_
         _, model_name, rpm = load_api_config()
         await acquire_rate_slot(rpm)
 
-        model = genai.GenerativeModel(model_name)
-
         full_system_prompt = f"{system_prompt}\n\n{custom_prompt}\n\nСейчас ты общаешься с: {friend_name}."
+
+        model = genai.GenerativeModel(
+            model_name,
+            system_instruction=full_system_prompt
+        )
 
         contents = _history_to_gemini_contents(history)
 
@@ -103,8 +106,7 @@ async def gemini_generate(history, friend_name: str, temperature: float, custom_
         response = await model.generate_content_async(
             contents=contents,
             generation_config=generation_config,
-            safety_settings=_gemini_safety_settings(),
-            system_instruction=full_system_prompt
+            safety_settings=_gemini_safety_settings()
         )
 
         log_message(f"[API Response Raw] {response}", level="debug")

@@ -70,7 +70,12 @@ async def start_settings_bot(token: str):
                         temp = app_state.get("temp_var", 0.7)
 
                 temp = max(0.0, min(2.0, temp))
-                app_state["temp_var"] = temp
+
+                # Вызываем callback для обновления GUI и сохранения состояния
+                if 'update_temperature' in app_state.get('gui_update_callbacks', {}):
+                    app_state['gui_update_callbacks']['update_temperature'](temp)
+                else:
+                    app_state["temp_var"] = temp # Fallback
 
                 keyboard = [
                     [
@@ -81,6 +86,10 @@ async def start_settings_bot(token: str):
                     [KeyboardButtonCallback("⬅️ Назад", b'general_settings')]
                 ]
                 await event.edit("Изменить температуру:", buttons=keyboard)
+
+            elif data in ['user_mode_main', 'bot_mode_main', 'logs_main']:
+                keyboard = [[KeyboardButtonCallback("⬅️ Назад", b'start')]]
+                await event.edit("Этот раздел находится в разработке.", buttons=keyboard)
 
             elif data == 'start':
                 if user_id in user_states:

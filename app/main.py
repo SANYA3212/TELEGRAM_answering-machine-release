@@ -159,7 +159,8 @@ class TelegramBridgeApp:
         app_state["active_chat_entities"] = {}
         app_state["gui_update_callbacks"] = {
             "update_bots_listbox": self.update_bots_listbox,
-            "update_settings_bot_buttons": self.update_settings_bot_buttons
+            "update_settings_bot_buttons": self.update_settings_bot_buttons,
+            "update_temperature": self.update_temperature,
         }
         app_state["settings_bot_running"] = False
         self.setup_ui()
@@ -706,11 +707,26 @@ class TelegramBridgeApp:
         self.bot_desc_entry.delete(0, 'end'); self.bot_desc_entry.insert(0, bot_data.get('desc', ''))
         self.bot_prompt_text.delete('1.0', 'end'); self.bot_prompt_text.insert('1.0', bot_data.get('system_prompt', ''))
 
-    def on_temp_change(self, val):
-        try: v = float(val)
-        except: v = 0.7
+    def update_temperature(self, new_temp):
+        """Централизованная функция для обновления температуры."""
+        try:
+            v = float(new_temp)
+            v = max(0.0, min(2.0, v)) # Ограничиваем значение в диапазоне 0.0-2.0
+        except (ValueError, TypeError):
+            v = 0.7
+
+        self.temp_var.set(v)
         app_state["temp_var"] = v
-        if self.temp_value_label: self.temp_value_label.config(text=f"{v:.1f}")
+        if self.temp_value_label:
+            self.temp_value_label.config(text=f"{v:.1f}")
+
+        log_message(f"Температура установлена на {v:.1f}", level="info")
+        # Тихо сохраняем состояние, чтобы не спамить в лог, но сохранить настройку
+        self.save_gui_state()
+
+    def on_temp_change(self, val):
+        """Обработчик события изменения слайдера температуры."""
+        self.update_temperature(val)
 
     def on_see_my_msgs_toggle(self):
         app_state["see_my_msgs"] = self.see_my_msgs_var.get()
